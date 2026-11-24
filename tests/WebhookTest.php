@@ -60,6 +60,21 @@ class WebhookTest extends TestCase
         putenv($value === null ? $name : $name . '=' . $value);
     }
 
+    public function testPathSlashesAreNormalized(): void
+    {
+        foreach (['wo-created', '/wo-created', 'wo-created/', '//wo-created//', ' /wo-created '] as $path) {
+            Webhook::path($path)->tryPush();
+
+            $sent = end($this->transport->sent);
+            $this->assertSame('https://asa.test/api/webhook/v1/asa-automations/wo-created', $sent['url'], $path);
+        }
+
+        Webhook::path('/orders/created')->tryPush();
+
+        $sent = end($this->transport->sent);
+        $this->assertSame('https://asa.test/api/webhook/v1/asa-automations/orders/created', $sent['url']);
+    }
+
     public function testPushSendsRequestAndReadsExecution(): void
     {
         $this->transport->answer = [
@@ -68,7 +83,7 @@ class WebhookTest extends TestCase
             'body' => '{"status":{"code":200,"message":"Success"},"result":{"executionUuid":"exec-1"}}',
         ];
 
-        $result = Webhook::path('/wo-created')
+        $result = Webhook::path('wo-created')
             ->data(['woNumber' => 'WO-1'])
             ->query(['source' => 'crm', 'note' => 'a b'])
             ->headers(['X-Request-Id' => 'req-1'])

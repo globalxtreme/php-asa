@@ -4,7 +4,7 @@ Package PHP untuk ASA Automation GlobalXtreme. Versi PHP dari package `asa` di g
 
 Saat ini berisi **Webhook**: memulai workflow ASA lewat node Webhook (trigger) dari service mana pun.
 
-- PHP 7.4 ke atas (termasuk PHP 8)
+- PHP 7.4 sampai 8.3 (diuji di PHP 7.4 dan 8.3)
 - Laravel 7 ke atas, atau PHP tanpa framework
 - Tanpa dependensi selain ekstensi `curl` dan `json`
 
@@ -37,10 +37,14 @@ php artisan vendor:publish --tag=asa-config
 
 Yang ditulis pemanggil hanya **path**, dan bila ada **data**, **query**, dan **headers**.
 
+Path ditulis **tanpa `/` di depan**: `wo-created`, bukan `/wo-created`. Slash ditambahkan otomatis oleh package.
+Bila path terlanjur ditulis dengan `/` di awal atau akhir, slash itu dibuang, sehingga URL-nya tetap
+`.../asa-automations/wo-created` (tidak pernah `...//wo-created`).
+
 ```php
 use GlobalXtreme\ASA\Webhook;
 
-Webhook::path('/wo-created')
+Webhook::path('wo-created')
     ->data(['woNumber' => 'WO-2026-00123'])
     ->push();
 ```
@@ -48,7 +52,7 @@ Webhook::path('/wo-created')
 Lengkap:
 
 ```php
-$result = Webhook::path('/wo-created')
+$result = Webhook::path('wo-created')
     ->method('POST')                              // default POST
     ->data(['woNumber' => 'WO-2026-00123'])       // body JSON, di workflow: $json.body
     ->query(['source' => 'crm'])                  // query string, di workflow: $json.query
@@ -68,7 +72,7 @@ $result->json();         // isi jawaban sebagai array
   proses pemanggil.
 
 ```php
-$result = Webhook::path('/wo-created')->data($payload)->tryPush();
+$result = Webhook::path('wo-created')->data($payload)->tryPush();
 
 if ($result->failed()) {
     Log::warning($result->error);
@@ -79,7 +83,7 @@ if ($result->failed()) {
 use GlobalXtreme\ASA\WebhookException;
 
 try {
-    Webhook::path('/wo-created')->data($payload)->push();
+    Webhook::path('wo-created')->data($payload)->push();
 } catch (WebhookException $e) {
     $e->getMessage();          // pesan error
     $e->getCode();             // status HTTP jawaban ASA, 0 bila tidak ada jawaban

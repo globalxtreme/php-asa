@@ -9,7 +9,7 @@ use Throwable;
 /**
  * Memulai workflow ASA lewat node Webhook (trigger) dari service mana pun.
  *
- *     Webhook::path('/wo-created')
+ *     Webhook::path('wo-created')
  *         ->data(['woNumber' => 'WO-2026-00123'])
  *         ->push(); // panggil SETELAH transaction commit
  *
@@ -24,7 +24,7 @@ use Throwable;
  */
 class Webhook
 {
-    /** Prefix URL webhook ASA; path node Webhook ditulis sesudahnya */
+    /** Prefix URL webhook ASA; path node Webhook disambung sesudahnya dengan satu "/" */
     const PREFIX = '/api/webhook/v1/asa-automations';
 
     /** Batas waktu bawaan panggilan, dalam detik */
@@ -50,11 +50,13 @@ class Webhook
 
     public function __construct(string $path)
     {
-        $this->path = $path;
+        // Slash di awal atau akhir dibuang; package yang menyambungnya ke prefix dengan satu "/"
+        $this->path = trim(trim($path), '/');
     }
 
     /**
-     * Path node Webhook, mis. "/wo-created"
+     * Path node Webhook tanpa "/" di depan, mis. "wo-created". Slash ditambahkan otomatis oleh package; slash di
+     * awal atau akhir yang ikut tertulis dibuang, sehingga hasilnya tetap ".../wo-created"
      */
     public static function path(string $path): self
     {
@@ -130,7 +132,7 @@ class Webhook
     {
         $result = new WebhookResult();
 
-        $path = trim($this->path, '/');
+        $path = $this->path;
         if ($path === '') {
             return $this->fail($result, 'ASA webhook path is required');
         }

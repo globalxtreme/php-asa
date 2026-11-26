@@ -9,13 +9,18 @@ use Throwable;
 /**
  * Memulai workflow ASA lewat node Webhook (trigger) dari service mana pun.
  *
- *     Webhook::path('wo-created')
+ *     $result = Webhook::path('wo-created')
  *         ->data(['woNumber' => 'WO-2026-00123'])
+ *         ->description('WO-2026-00123 dibuat')
+ *         ->createdBy($employee->id)
+ *         ->createdByName($employee->fullName)
  *         ->push(); // panggil SETELAH transaction commit
  *
+ *     $result->executionUuid; // UUID eksekusi yang dibuat ASA
+ *
  * Domain ASA dan token selalu dibaca dari environment (ASA_WEBHOOK_HOST, ASA_WEBHOOK_TOKEN; opsional
- * ASA_WEBHOOK_TIMEOUT dalam detik, default 10). Pemanggil hanya mengisi path dan, bila ada, data, query, dan
- * headers. Node Webhook di ASA harus memakai Authentication "GX Service" dan memilih service pemilik token.
+ * ASA_WEBHOOK_TIMEOUT dalam detik, default 10). Pemanggil hanya mengisi path dan, bila ada, data, query,
+ * headers, description, createdBy, dan createdByName. Node Webhook di ASA harus memakai Authentication "GX Service" dan memilih service pemilik token.
  *
  * Satu panggilan memulai satu workflow (path + method unik di ASA). Untuk memulai beberapa workflow dari satu
  * kejadian, arahkan path ke workflow dispatcher yang memanggil workflow lain dengan node Execute Sub-workflow.
@@ -29,6 +34,11 @@ class Webhook
 
     /** Batas waktu bawaan panggilan, dalam detik */
     const DEFAULT_TIMEOUT = 10;
+
+    /** Header metadata eksekusi; dicatat ASA pada eksekusi dan tidak diteruskan ke $json.headers workflow */
+    const HEADER_DESCRIPTION = 'X-ASA-Description';
+    const HEADER_CREATED_BY = 'X-ASA-Created-By';
+    const HEADER_CREATED_BY_NAME = 'X-ASA-Created-By-Name';
 
     /** @var Transport|null */
     private static $transport;
@@ -47,6 +57,15 @@ class Webhook
 
     /** @var array<string, string> */
     private $headers = [];
+
+    /** @var string */
+    private $description = '';
+
+    /** @var string */
+    private $createdBy = '';
+
+    /** @var string */
+    private $createdByName = '';
 
     public function __construct(string $path)
     {
@@ -104,6 +123,39 @@ class Webhook
     public function headers(array $headers): self
     {
         $this->headers = $headers;
+
+        return $this;
+    }
+
+    /**
+     * Keterangan eksekusi, tampil di detail eksekusi ASA. Opsional, maks. 500 karakter
+     */
+    public function description(string $description): self
+    {
+        $this->description = $description;
+
+        return $this;
+    }
+
+    /**
+     * ID karyawan yang memicu eksekusi, maks. 45 karakter. Opsional; bila createdBy dan createdByName kosong,
+     * ASA mencatat pemilik workflow sebagai pemicu
+     *
+     * @param string|int $createdBy
+     */
+    public function createdBy($createdBy): self
+    {
+        $this->createdBy = (string) $createdBy;
+
+        return $this;
+    }
+
+    /**
+     * Nama karyawan yang memicu eksekusi, maks. 250 karakter. Opsional
+     */
+    public function createdByName(string $createdByName): self
+    {
+        $this->createdByName = $createdByName;
 
         return $this;
     }
@@ -177,6 +229,26 @@ class Webhook
             }
         }
 
+        // Metadata eksekusi; bila diisi, menggantikan header bernama sama dari headers()
+        $metadata = [
+            self::HEADER_DESCRIPTION => $this->description,
+            self::HEADER_CREATED_BY => $this->createdBy,
+            self::HEADER_CREATED_BY_NAME => $this->createdByName,
+        ];
+        foreach ($metadata as $name => $value) {
+            $value = self::headerValue($value);
+            if ($value === '') {
+                continue;
+            }
+
+            foreach (array_keys($headers) as $existing) {
+                if (strtolower((string) $existing) === strtolower($name)) {
+                    unset($headers[$existing]);
+                }
+            }
+            $headers[$name] = $value;
+        }
+
         // Selalu paling akhir, supaya headers dari pemanggil tidak menimpa token
         $headers['Authorization'] = 'Bearer ' . $token;
 
@@ -232,6 +304,14 @@ class Webhook
         $result->error = $message;
 
         return $result;
+    }
+
+    /**
+     * Nilai satu baris untuk header; baris baru (mis. pada description) diganti spasi
+     */
+    private static function headerValue(string $value): string
+    {
+        return trim(str_replace(["\r\n", "\r", "\n"], ' ', $value));
     }
 
     private static function transport(): Transport

@@ -13,7 +13,10 @@ class WebhookResult
     /** @var array<string, string> Header jawaban, nama huruf kecil */
     public $headers = [];
 
-    /** @var string|null Terisi bila node Webhook memakai Respond "Immediately" */
+    /**
+     * @var string|null result.executionUuid dari jawaban ASA, sudah diurai dari body sehingga cukup dibaca
+     *                  $result->executionUuid. Terisi bila node Webhook memakai Respond "Immediately" (bawaan)
+     */
     public $executionUuid;
 
     /**

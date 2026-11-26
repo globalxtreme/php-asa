@@ -35,7 +35,8 @@ php artisan vendor:publish --tag=asa-config
 
 ## Pemakaian
 
-Yang ditulis pemanggil hanya **path**, dan bila ada **data**, **query**, dan **headers**.
+Yang ditulis pemanggil hanya **path**, dan bila ada **data**, **query**, **headers**, **description**,
+**createdBy**, dan **createdByName**.
 
 Path ditulis **tanpa `/` di depan**: `wo-created`, bukan `/wo-created`. Slash ditambahkan otomatis oleh package.
 Bila path terlanjur ditulis dengan `/` di awal atau akhir, slash itu dibuang, sehingga URL-nya tetap
@@ -57,10 +58,13 @@ $result = Webhook::path('wo-created')
     ->data(['woNumber' => 'WO-2026-00123'])       // body JSON, di workflow: $json.body
     ->query(['source' => 'crm'])                  // query string, di workflow: $json.query
     ->headers(['X-Request-Id' => 'req-1'])        // header tambahan, di workflow: $json.headers
+    ->description('WO-2026-00123 dibuat')         // keterangan eksekusi, maks. 500 karakter
+    ->createdBy($employee->id)                    // ID karyawan pemicu, maks. 45 karakter
+    ->createdByName($employee->fullName)          // nama karyawan pemicu, maks. 250 karakter
     ->push();
 
 $result->statusCode;     // status HTTP jawaban ASA
-$result->executionUuid;  // terisi bila node Webhook memakai Respond "Immediately"
+$result->executionUuid;  // UUID eksekusi, langsung bisa dipakai (Respond "Immediately")
 $result->body;           // isi jawaban apa adanya
 $result->json();         // isi jawaban sebagai array
 ```
@@ -97,6 +101,10 @@ try {
 - Node Webhook di ASA harus memakai Authentication **GX Service** dan memilih service pemilik token.
 - Method panggilan harus sama dengan method node Webhook (default package: `POST`).
 - Header `Authorization` selalu diisi ASA Token dan tidak bisa diganti lewat `headers()`.
+- `description()`, `createdBy()`, dan `createdByName()` opsional. Dikirim sebagai header `X-ASA-Description`,
+  `X-ASA-Created-By`, dan `X-ASA-Created-By-Name`, dicatat pada eksekusi ASA, dan tidak masuk ke `$json.headers`
+  workflow. Bila `createdBy` dan `createdByName` kosong, ASA mencatat pemilik workflow sebagai pemicu.
+  Baris baru pada nilainya diganti spasi.
 - Satu panggilan memulai satu workflow (path + method unik di ASA). Untuk memulai beberapa workflow dari satu
   kejadian, arahkan path ke workflow dispatcher yang memanggil workflow lain dengan node Execute Sub-workflow.
 - Panggilan tidak diulang otomatis: setiap panggilan yang diterima membuat satu eksekusi baru.

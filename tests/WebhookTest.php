@@ -103,6 +103,32 @@ class WebhookTest extends TestCase
         $this->assertSame(Webhook::DEFAULT_TIMEOUT, $sent['timeout']);
     }
 
+    public function testExecutionMetadataIsSentAsHeaders(): void
+    {
+        Webhook::path('wo-created')
+            ->headers(['x-asa-created-by' => 'other'])
+            ->description("WO-1 dibuat\r\noleh CRM")
+            ->createdBy(15)
+            ->createdByName('Yuswa')
+            ->tryPush();
+
+        $headers = $this->transport->sent[0]['headers'];
+        $this->assertSame('WO-1 dibuat oleh CRM', $headers['X-ASA-Description']);
+        $this->assertSame('15', $headers['X-ASA-Created-By']);
+        $this->assertSame('Yuswa', $headers['X-ASA-Created-By-Name']);
+        $this->assertArrayNotHasKey('x-asa-created-by', $headers);
+    }
+
+    public function testEmptyExecutionMetadataIsNotSent(): void
+    {
+        Webhook::path('ping')->tryPush();
+
+        $headers = $this->transport->sent[0]['headers'];
+        $this->assertArrayNotHasKey('X-ASA-Description', $headers);
+        $this->assertArrayNotHasKey('X-ASA-Created-By', $headers);
+        $this->assertArrayNotHasKey('X-ASA-Created-By-Name', $headers);
+    }
+
     public function testOnlyPathIsNeeded(): void
     {
         $result = Webhook::path('ping')->method('get')->tryPush();
